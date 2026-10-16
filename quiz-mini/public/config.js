@@ -1,4 +1,3 @@
 // config.js - Cấu hình kết nối Backend
-// - Khi chạy ở máy tính (Local): để trống ''
-// - Khi deploy lên Vercel: điền URL Backend trên Render (ví dụ: 'https://quiz-mini-backend.onrender.com')
-window.API_BASE_URL = '';
+// URL Backend đã deploy trên Render
+window.API_BASE_URL = 'https://quiz-mini-project-d59p.onrender.com';
