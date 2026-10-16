@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Quiz Mini</title><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#">
+      <img src="/icon-header.png" alt="Quiz Logo" class="brand-logo" onerror="this.src='https://raw.githubusercontent.com/Phi0604/VIDEO-IMAGE/main/IMAGE/icon-header.png'">
+      <span>Quiz<span class="brand-light">Mini</span></span>
+    </a>
+    <nav><button class="nav-btn active" data-view="play-view">Tham gia</button><button class="nav-btn" data-view="admin-view">Quản trị</button></nav>
+  </header>
+  <main class="shell">
+    <section id="play-view" class="view">
+      <div class="panel join-panel" id="join-panel">
+        <div class="panel-heading"><div><span class="step-tag">BẮT ĐẦU</span><h2>Vào phòng thi</h2></div><span class="panel-icon">↗</span></div>
+        <form id="join-form">
+          <label for="full-name">Họ và tên</label><input id="full-name" name="full_name" placeholder="Ví dụ: Nguyễn Văn An" maxlength="120" required>
+          <label for="candidate-number">Mã số sinh viên (MSSV)</label><input id="candidate-number" name="candidate_number" placeholder="Ví dụ: 23DCCN001" maxlength="40" required>
+          <button class="btn primary full" type="submit">Tham gia phòng chờ <span>→</span></button>
+        </form>
+        <div id="join-message" class="message" aria-live="polite"></div>
+      </div>
+      <section id="waiting-panel" class="panel hidden center">
+        <div class="waiting-orbit"><span>⌛</span></div>
+        <span class="step-tag">ĐÃ ĐIỂM DANH</span>
+        <h2 id="waiting-title">Bạn đang ở phòng chờ</h2>
+        <p id="waiting-user-info" class="muted" style="margin: 6px 0 10px; font-weight:600;"></p>
+        <p id="waiting-description">Giữ nguyên trang này. Bài quiz sẽ tự động mở khi admin cho phép.</p>
+        <div class="status-pill"><span class="live-dot"></span><span id="waiting-status">Đang chờ admin mở bài</span></div>
+        <div>
+          <button type="button" class="mini-btn reset-user-btn" style="margin-top: 18px;">← Nhập lại thông tin / Đổi MSSV</button>
+        </div>
+      </section>
+      <section id="quiz-panel" class="panel hidden">
+        <div class="quiz-timer-header">
+          <div class="quiz-step-info">
+            <span class="step-tag">THỬ THÁCH TRỰC TIẾP</span>
+            <h2 id="quiz-title">Quiz</h2>
+          </div>
+          <div class="quiz-timer-box">
+            <div class="timer-circle"><span id="timer-seconds">20.0s</span></div>
+            <div class="timer-desc">
+              <span class="small muted">Điểm tối đa lúc này:</span>
+              <strong id="timer-current-pts" class="timer-pts-text">10.0đ</strong>
+            </div>
+          </div>
+        </div>
+        <div class="timer-progress-track">
+          <div id="timer-bar-fill" class="timer-progress-fill"></div>
+        </div>
+        <div id="questions-container" class="active-question-wrapper"></div>
+      </section>
+      <section id="result-panel" class="panel hidden center">
+        <div class="result-icon">✓</div>
+        <span class="step-tag">HOÀN THÀNH</span>
+        <h2>Bài làm đã được ghi nhận!</h2>
+        <p>Điểm của bạn</p>
+        <div class="score-big" id="result-score">0.0</div>
+        <p id="result-detail"></p>
+        <div style="margin: 12px 0 20px;">
+          <button type="button" class="mini-btn reset-user-btn">← Đổi MSSV / Làm lượt khác</button>
+        </div>
+
+        <div id="review-wrapper" class="review-wrapper">
+          <div class="review-toolbar">
+            <div class="review-title-group">
+              <span class="step-tag">CHI TIẾT BÀI LÀM</span>
+              <h3>Đáp án & Lời giải câu sai</h3>
+            </div>
+            <div class="review-filter-group">
+              <button type="button" class="mini-btn review-filter-btn active" data-filter="all">Tất cả (<span id="total-questions-badge">0</span>)</button>
+              <button type="button" class="mini-btn review-filter-btn wrong-filter" data-filter="wrong">Chỉ câu sai (<span id="wrong-count-badge">0</span>)</button>
+            </div>
+          </div>
+          <div id="review-container" class="review-container"></div>
+        </div>
+      </section>
+    </section>
+
+    <section id="admin-view" class="view hidden">
+      <div id="admin-login-panel" class="panel admin-login">
+        <div class="panel-heading"><div><span class="step-tag">KHU VỰC RIÊNG</span><h2>Đăng nhập quản trị</h2></div><span class="panel-icon">⌘</span></div>
+        <form id="admin-login-form"><label>Tên đăng nhập</label><input name="username" autocomplete="username" required placeholder="admin"><label>Mật khẩu</label><input name="password" type="password" autocomplete="current-password" required placeholder="Nhập mật khẩu"><button class="btn primary full">Đăng nhập <span>→</span></button></form><div id="admin-login-message" class="message"></div><p class="muted small">Tài khoản mặc định trong file .env.example. Hãy đổi mật khẩu trước khi triển khai.</p>
+      </div>
+      <div id="admin-dashboard" class="hidden">
+        <div class="admin-welcome"><div><span class="step-tag">DASHBOARD</span><h1>Điều khiển <span>quiz.</span></h1><p>Tạo bài, quản lý người tham gia và theo dõi thứ hạng.</p></div><button id="logout-btn" class="btn secondary">Đăng xuất ↗</button></div>
+        <div class="admin-subnav">
+          <button type="button" class="admin-tab-btn active" data-subview="admin-page-quizzes">
+            <span>📝</span> Quản lý Quiz (Tạo & Danh sách)
+          </button>
+          <button type="button" class="admin-tab-btn" data-subview="admin-page-monitor">
+            <span>📊</span> Bảng xếp hạng & Thí sinh <span class="ws-mini-indicator"><span class="live-dot pulse"></span> Live</span>
+          </button>
+        </div>
+
+        <!-- TRANG 1: TẠO QUIZ + DANH SÁCH QUIZ -->
+        <div id="admin-page-quizzes" class="admin-subpage">
+          <div class="admin-grid">
+            <section class="panel" id="quiz-form-panel">
+              <div class="panel-heading">
+                <div>
+                  <span class="step-tag" id="quiz-form-step-tag">01 / THIẾT LẬP</span>
+                  <h2 id="quiz-form-heading">Tạo quiz mới</h2>
+                </div>
+              </div>
+
+              <!-- THANH CÔNG CỤ NHẬP TỪ FILE TEXT -->
+              <div class="import-quiz-toolbar">
+                <input type="file" id="import-quiz-file" accept=".txt,text/plain" style="display: none;">
+                <div class="import-toolbar-actions">
+                  <button type="button" class="mini-btn import-btn" id="btn-trigger-import-file">
+                    📁 Nhập từ file text (.txt)
+                  </button>
+                  <button type="button" class="mini-btn sample-file-btn" id="btn-download-sample-file" title="Tải file mẫu định dạng quy định">
+                    📥 Tải file mẫu (.txt)
+                  </button>
+                </div>
+                <div class="import-format-hint">
+                  <span>Quy định: <code>tên quiz:</code> · <code>mô tả ngắn:</code> · <code>câu hỏi 1:</code> · <code>A.</code> <code>B.</code> <code>C.</code> <code>D.</code> · <code>Đáp án đúng:</code> · <code>Điểm:</code> · <code>Thời gian:</code></span>
+                </div>
+              </div>
+
+              <form id="create-quiz-form">
+                <label>Tên quiz</label><input name="title" required maxlength="180" placeholder="Ví dụ: Quiz kiến thức tổng hợp">
+                <label>Mô tả ngắn</label><input name="description" maxlength="500" placeholder="Chủ đề, lưu ý...">
+                <div id="question-editor"></div>
+                <button id="add-question-btn" class="btn secondary full" type="button">＋ Thêm câu hỏi</button>
+                <div class="form-action-group" style="margin-top: 14px;">
+                  <button id="quiz-submit-btn" class="btn primary full" type="submit">Tạo quiz <span>→</span></button>
+                  <button id="cancel-edit-btn" class="btn secondary full hidden" type="button" style="margin-top: 8px;">✕ Hủy chỉnh sửa / Tạo quiz mới</button>
+                </div>
+              </form>
+              <div id="create-message" class="message"></div>
+            </section>
+            <section class="panel">
+              <div class="panel-heading"><div><span class="step-tag">02 / VẬN HÀNH</span><h2>Danh sách quiz</h2></div><button id="refresh-quizzes" class="icon-btn" title="Làm mới">↻</button></div>
+              <div id="quiz-list" class="quiz-list"><p class="muted">Đang tải...</p></div>
+            </section>
+          </div>
+        </div>
+
+        <!-- TRANG 2: NGƯỜI THAM DỰ & BẢNG XẾP HẠNG REALTIME -->
+        <div id="admin-page-monitor" class="admin-subpage hidden">
+          <div class="monitor-header-panel panel">
+            <div class="monitor-controls">
+              <div class="quiz-selector-group">
+                <label for="monitor-quiz-select"><strong>Đang theo dõi bài quiz:</strong></label>
+                <select id="monitor-quiz-select" class="monitor-select">
+                  <option value="">-- Chọn bài quiz để theo dõi --</option>
+                </select>
+              </div>
+              <div class="monitor-status-box">
+                <span id="ws-status-badge" class="ws-badge ws-connecting"><span class="live-dot pulse"></span> <span id="ws-status-text">Đang kết nối Realtime...</span></span>
+                <span id="monitor-quiz-status" class="status-label status-closed">CHƯA CHỌN</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-grid lower-grid" style="margin-top: 18px;">
+            <section class="panel">
+              <div class="panel-heading">
+                <div><span class="step-tag">01 / ĐIỂM DANH</span><h2>Người tham dự (<span id="participant-count-badge">0</span>)</h2></div>
+              </div>
+              <div id="participants-content" class="table-wrap"><p class="muted">Chọn bài quiz để xem danh sách thí sinh.</p></div>
+            </section>
+            <section class="panel">
+              <div class="panel-heading">
+                <div><span class="step-tag">02 / TRỰC TIẾP</span><h2>Bảng xếp hạng</h2></div>
+                <div class="realtime-status-tag"><span class="live-dot pulse"></span> Realtime</div>
+              </div>
+              <div id="ranking-content" class="ranking-list"><p class="muted">Chọn bài quiz để xem xếp hạng.</p></div>
+            </section>
+          </div>
+
+          <!-- PHẦN MỚI: TOP 3 CÂU HỎI SAI NHIỀU NHẤT NẰM DƯỚI NGƯỜI THAM DỰ VÀ BẢNG XẾP HẠNG -->
+          <section class="panel top-wrong-panel" style="margin-top: 24px;">
+            <div class="panel-heading">
+              <div>
+                <span class="step-tag">03 / PHÂN TÍCH CHẤT LƯỢNG</span>
+                <h2>Top 3 câu hỏi sai nhiều nhất</h2>
+              </div>
+              <span class="analytics-badge">⚠️ Câu hỏi cần chú ý</span>
+            </div>
+            <div id="top-wrong-content" class="top-wrong-container">
+              <p class="muted">Chọn bài quiz để xem phân tích 3 câu hỏi có tỷ lệ sai nhiều nhất.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+    <footer><span>QUIZ MINI © 2026</span><span>Simple. Fast. Fair.</span></footer>
+  </main>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body></html>
