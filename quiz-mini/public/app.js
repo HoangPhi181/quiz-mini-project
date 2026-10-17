@@ -129,10 +129,24 @@ function resetParticipantSession() {
 $$('.reset-user-btn').forEach(btn => btn.addEventListener('click', resetParticipantSession));
 
 // POLLING PARTICIPANT STATE
+// POLLING PARTICIPANT STATE (TỐI ƯU HÓA JITTER TRÁNH NGHẼN AIVEN & RENDER KHI 100 NGƯỜI CHỜ)
 function startPolling() {
-  clearInterval(pollHandle);
+  clearTimeout(pollHandle);
   checkParticipantState();
-  pollHandle = setInterval(checkParticipantState, 2500);
+  scheduleNextPoll();
+}
+
+function scheduleNextPoll() {
+  clearTimeout(pollHandle);
+  if (!participantId || quizInProgress) return;
+  // Giãn cách ngẫu nhiên từ 3000ms đến 4500ms để phân tán tải đều trên Render/Aiven
+  const delay = 3000 + Math.floor(Math.random() * 1500);
+  pollHandle = setTimeout(async () => {
+    await checkParticipantState();
+    if (!quizInProgress && participantId) {
+      scheduleNextPoll();
+    }
+  }, delay);
 }
 
 async function checkParticipantState() {
@@ -143,7 +157,7 @@ async function checkParticipantState() {
       showWaitingPanel();
       $('#waiting-status').textContent = 'Đang chờ admin mở bài';
     } else if (state.status === 'open' && state.questions && !state.submitted) {
-      clearInterval(pollHandle);
+      clearTimeout(pollHandle);
       $('#waiting-panel').classList.add('hidden');
       $('#join-panel').classList.add('hidden');
       $('#quiz-panel').classList.remove('hidden');
@@ -155,7 +169,7 @@ async function checkParticipantState() {
     }
 
     if (state.submitted && state.result) {
-      clearInterval(pollHandle);
+      clearTimeout(pollHandle);
       showResult(state.result.score, state.result.total_questions, state.result.review || []);
     }
   } catch (err) {
@@ -616,10 +630,9 @@ $('#monitor-quiz-select').addEventListener('change', async (e) => {
   if (!id) {
     selectedAdminQuiz = null;
     localStorage.removeItem('quiz_selected_admin_quiz');
-    $('#participants-content').innerHTML = '<p class="muted">Chọn bài quiz để xem danh sách thí sinh.</p>';
+    resetMonitorParticipantsUI();
     $('#ranking-content').innerHTML = '<p class="muted">Chọn bài quiz để xem xếp hạng.</p>';
     $('#top-wrong-content').innerHTML = '<p class="muted">Chọn bài quiz để xem phân tích 3 câu hỏi có tỷ lệ sai nhiều nhất.</p>';
-    $('#participant-count-badge').textContent = '0';
     updateMonitorStatusBadge(null);
     return;
   }
@@ -1116,10 +1129,9 @@ async function quizAction(action, id) {
         selectedAdminQuiz = null;
         localStorage.removeItem('quiz_selected_admin_quiz');
         updateMonitorStatusBadge(null);
-        $('#participants-content').innerHTML = '<p class="muted">Chọn bài quiz để xem danh sách thí sinh.</p>';
+        resetMonitorParticipantsUI();
         $('#ranking-content').innerHTML = '<p class="muted">Chọn bài quiz để xem xếp hạng.</p>';
         $('#top-wrong-content').innerHTML = '<p class="muted">Chọn bài quiz để xem phân tích 3 câu hỏi có tỷ lệ sai nhiều nhất.</p>';
-        $('#participant-count-badge').textContent = '0';
       }
       await loadQuizzes();
     } catch (err) {
@@ -1155,26 +1167,148 @@ async function loadQuizData(id) {
     renderRanking(ranking);
     renderTopWrongQuestions(topWrong.questions || [], topWrong.total_submitted || 0);
   } catch (err) {
-    $('#participants-content').innerHTML = `<p class="message">${escapeHtml(err.message)}</p>`;
+    const pContent = $('#participants-content');
+    if (pContent) pContent.innerHTML = `<p class="message">${escapeHtml(err.message)}</p>`;
   }
 }
 
-// BẢNG NGƯỜI THAM DỰ (HIỂN THỊ MSSV)
-function renderParticipants(people) {
-  $('#participant-count-badge').textContent = people.length;
-  $('#participants-content').innerHTML = people.length ? `
+// BIẾN TRẠNG THÁI BỘ LỌC THÍ SINH
+let currentParticipantsList = [];
+let currentParticipantsFilter = 'all'; // 'all' | 'pending' | 'completed'
+let currentParticipantsSearch = '';
+
+// BẢNG NGƯỜI THAM DỰ & ĐẾM MẮT HOẠT ĐỘNG & TIẾN ĐỘ HOÀN THÀNH
+function renderParticipants(people = []) {
+  currentParticipantsList = Array.isArray(people) ? people : [];
+  const total = currentParticipantsList.length;
+  const completed = currentParticipantsList.filter(p => !!p.submitted_at).length;
+  const pending = total - completed;
+
+  // Cập nhật thẻ mắt người đang hoạt động
+  const activeCountEl = $('#active-participants-count');
+  if (activeCountEl) activeCountEl.textContent = total;
+  const activeTag = $('#active-users-tag');
+  if (activeTag) {
+    activeTag.title = `Số thí sinh: ${total} (${pending} chưa xong, ${completed} đã xong). Bấm để xem danh sách.`;
+  }
+
+  // Cập nhật thẻ số người hoàn thành 0/tổng
+  const completedCountEl = $('#completed-count');
+  if (completedCountEl) completedCountEl.textContent = completed;
+  const totalCountEl = $('#total-count');
+  if (totalCountEl) totalCountEl.textContent = total;
+  const completedTag = $('#completed-users-tag');
+  if (completedTag) {
+    const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+    completedTag.title = `Tiến độ: ${completed}/${total} thí sinh đã nộp bài (${pct}%). Bấm để lọc danh sách.`;
+  }
+
+  // Cập nhật các badge số lượng trên modal toolbar
+  const pBadge = $('#participant-count-badge');
+  if (pBadge) pBadge.textContent = total;
+  const filterAllCount = $('#filter-all-count');
+  if (filterAllCount) filterAllCount.textContent = total;
+  const filterPendingCount = $('#filter-pending-count');
+  if (filterPendingCount) filterPendingCount.textContent = pending;
+  const filterCompletedCount = $('#filter-completed-count');
+  if (filterCompletedCount) filterCompletedCount.textContent = completed;
+
+  // Render danh sách thí sinh có lọc
+  applyParticipantsFilterAndRender();
+}
+
+function applyParticipantsFilterAndRender() {
+  const pContent = $('#participants-content');
+  if (!pContent) return;
+
+  if (!currentParticipantsList.length) {
+    pContent.innerHTML = '<p class="empty">Chưa có người tham gia bài quiz này.</p>';
+    return;
+  }
+
+  const query = (currentParticipantsSearch || '').toLowerCase().trim();
+  let filtered = currentParticipantsList.slice();
+
+  // 1. Lọc theo tab tiến độ: Tất cả / Chưa làm xong / Đã làm xong
+  if (currentParticipantsFilter === 'pending') {
+    filtered = filtered.filter(p => !p.submitted_at);
+  } else if (currentParticipantsFilter === 'completed') {
+    filtered = filtered.filter(p => !!p.submitted_at);
+  }
+
+  // 2. Lọc theo từ khóa tìm kiếm (Họ tên hoặc MSSV)
+  if (query) {
+    filtered = filtered.filter(p => {
+      const name = (p.full_name || '').toLowerCase();
+      const mssv = (p.mssv || p.candidate_number || '').toLowerCase();
+      return name.includes(query) || mssv.includes(query);
+    });
+  }
+
+  if (!filtered.length) {
+    pContent.innerHTML = `
+      <div class="empty" style="padding: 24px 10px; text-align: center;">
+        <p style="margin: 0 0 8px;">Không tìm thấy thí sinh nào khớp với bộ lọc.</p>
+        <button type="button" class="mini-btn reset-filter-btn" style="padding: 5px 12px; font-size: 12px;">✕ Xóa bộ lọc & tìm kiếm</button>
+      </div>`;
+    const resetBtn = pContent.querySelector('.reset-filter-btn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        currentParticipantsFilter = 'all';
+        currentParticipantsSearch = '';
+        const searchInput = $('#participant-search-input');
+        if (searchInput) searchInput.value = '';
+        $$('.modal-tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === 'all'));
+        applyParticipantsFilterAndRender();
+      });
+    }
+    return;
+  }
+
+  pContent.innerHTML = `
     <table>
-      <thead><tr><th>Họ tên</th><th>MSSV</th><th>Trạng thái</th><th>Điểm</th></tr></thead>
+      <thead>
+        <tr>
+          <th style="width: 45px;">STT</th>
+          <th>Họ và tên</th>
+          <th>MSSV</th>
+          <th>Trạng thái</th>
+          <th>Điểm</th>
+        </tr>
+      </thead>
       <tbody>
-        ${people.map(p => `
+        ${filtered.map((p, idx) => `
           <tr>
+            <td><span class="muted small">${idx + 1}</span></td>
             <td><strong>${escapeHtml(p.full_name)}</strong></td>
             <td><code>${escapeHtml(p.mssv || p.candidate_number)}</code></td>
-            <td><span class="status-label ${p.submitted_at ? 'status-open' : 'status-closed'}">${p.submitted_at ? 'Đã nộp' : 'Đang làm bài / chờ'}</span></td>
+            <td>
+              <span class="status-label ${p.submitted_at ? 'status-open' : 'status-closed'}">
+                ${p.submitted_at ? '✓ Đã xong' : '⏳ Chưa xong'}
+              </span>
+            </td>
             <td>${p.submitted_at ? `<strong>${Number(p.score || 0).toFixed(1)}</strong>` : '-'}</td>
           </tr>`).join('')}
       </tbody>
-    </table>` : '<p class="empty">Chưa có người tham gia.</p>';
+    </table>`;
+}
+
+function resetMonitorParticipantsUI() {
+  currentParticipantsList = [];
+  currentParticipantsFilter = 'all';
+  currentParticipantsSearch = '';
+  const searchInput = $('#participant-search-input');
+  if (searchInput) searchInput.value = '';
+  $$('.modal-tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === 'all'));
+
+  if ($('#active-participants-count')) $('#active-participants-count').textContent = '0';
+  if ($('#completed-count')) $('#completed-count').textContent = '0';
+  if ($('#total-count')) $('#total-count').textContent = '0';
+  if ($('#participant-count-badge')) $('#participant-count-badge').textContent = '0';
+  if ($('#filter-all-count')) $('#filter-all-count').textContent = '0';
+  if ($('#filter-pending-count')) $('#filter-pending-count').textContent = '0';
+  if ($('#filter-completed-count')) $('#filter-completed-count').textContent = '0';
+  if ($('#participants-content')) $('#participants-content').innerHTML = '<p class="muted">Chọn bài quiz để xem danh sách thí sinh.</p>';
 }
 
 // BẢNG XẾP HẠNG (CLICK VÀO TÊN ĐỂ HIỆN MSSV)
@@ -1249,8 +1383,78 @@ function renderTopWrongQuestions(questions, totalSubmitted) {
   }).join('');
 }
 
+// MODAL QUẢN LÝ DANH SÁCH THÍ SINH & BỘ LỌC
+function initParticipantsModal() {
+  const activeTag = $('#active-users-tag');
+  const completedTag = $('#completed-users-tag');
+  const modal = $('#participants-modal');
+  const closeBtn = $('#close-participants-modal');
+  const searchInput = $('#participant-search-input');
+  const tabBtns = $$('.modal-tab-btn');
+
+  function openModal(defaultFilter = null) {
+    if (defaultFilter) {
+      currentParticipantsFilter = defaultFilter;
+      tabBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.filter === defaultFilter));
+    }
+    applyParticipantsFilterAndRender();
+    modal.classList.remove('hidden');
+    if (searchInput) {
+      setTimeout(() => searchInput.focus(), 60);
+    }
+  }
+
+  if (activeTag && modal) {
+    activeTag.addEventListener('click', () => openModal('all'));
+    activeTag.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal('all'); }
+    });
+  }
+
+  if (completedTag && modal) {
+    completedTag.addEventListener('click', () => openModal());
+    completedTag.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(); }
+    });
+  }
+
+  if (closeBtn && modal) {
+    closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        modal.classList.add('hidden');
+      }
+    });
+  }
+
+  // Sự kiện chuyển Tab lọc: Tất cả / Chưa làm xong / Đã làm xong
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentParticipantsFilter = btn.dataset.filter || 'all';
+      applyParticipantsFilterAndRender();
+    });
+  });
+
+  // Sự kiện tìm kiếm lọc theo Họ tên hoặc MSSV
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      currentParticipantsSearch = e.target.value;
+      applyParticipantsFilterAndRender();
+    });
+  }
+}
+
 // KHỞI ĐỘNG ỨNG DỤNG & PHỤC HỒI TRẠNG THÁI SAU KHI RELOAD
 async function initApp() {
+  initParticipantsModal();
   const activeView = localStorage.getItem('quiz_active_view') || 'play-view';
   setView(activeView);
 

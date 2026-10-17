@@ -39,7 +39,10 @@ app.use(session({
     maxAge: 8 * 60 * 60 * 1000
   }
 }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: isProd ? '15m' : 0,
+  etag: true
+}));
 app.use('/api/auth', authRoutes);
 app.use('/api', quizRoutes);
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

@@ -159,27 +159,35 @@
             </div>
           </div>
 
-          <div class="admin-grid lower-grid" style="margin-top: 18px;">
-            <section class="panel">
-              <div class="panel-heading">
-                <div><span class="step-tag">01 / ĐIỂM DANH</span><h2>Người tham dự (<span id="participant-count-badge">0</span>)</h2></div>
-              </div>
-              <div id="participants-content" class="table-wrap"><p class="muted">Chọn bài quiz để xem danh sách thí sinh.</p></div>
-            </section>
-            <section class="panel">
-              <div class="panel-heading">
-                <div><span class="step-tag">02 / TRỰC TIẾP</span><h2>Bảng xếp hạng</h2></div>
+          <!-- BẢNG XẾP HẠNG REALTIME (ĐÃ BỎ PHẦN 01/ĐIỂM DANH, THAY BẰNG MẮT HOẠT ĐỘNG BÊN CẠNH REALTIME) -->
+          <section class="panel ranking-panel" style="margin-top: 18px;">
+            <div class="panel-heading">
+              <div><span class="step-tag">TRỰC TIẾP</span><h2>Bảng xếp hạng</h2></div>
+              <div class="panel-heading-badges">
+                <div class="active-users-tag" id="active-users-tag" role="button" tabindex="0" title="Bấm để xem danh sách thí sinh">
+                  <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                  <span><strong id="active-participants-count">0</strong> đang hoạt động</span>
+                </div>
+                <div class="completed-users-tag" id="completed-users-tag" role="button" tabindex="0" title="Bấm để xem tiến độ làm bài (Tất cả / Chưa xong / Đã xong)">
+                  <svg class="check-badge-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span><strong id="completed-count">0</strong>/<span id="total-count">0</span> hoàn thành</span>
+                </div>
                 <div class="realtime-status-tag"><span class="live-dot pulse"></span> Realtime</div>
               </div>
-              <div id="ranking-content" class="ranking-list"><p class="muted">Chọn bài quiz để xem xếp hạng.</p></div>
-            </section>
-          </div>
+            </div>
+            <div id="ranking-content" class="ranking-list"><p class="muted">Chọn bài quiz để xem xếp hạng.</p></div>
+          </section>
 
-          <!-- PHẦN MỚI: TOP 3 CÂU HỎI SAI NHIỀU NHẤT NẰM DƯỚI NGƯỜI THAM DỰ VÀ BẢNG XẾP HẠNG -->
+          <!-- TOP 3 CÂU HỎI SAI NHIỀU NHẤT -->
           <section class="panel top-wrong-panel" style="margin-top: 24px;">
             <div class="panel-heading">
               <div>
-                <span class="step-tag">03 / PHÂN TÍCH CHẤT LƯỢNG</span>
+                <span class="step-tag">PHÂN TÍCH CHẤT LƯỢNG</span>
                 <h2>Top 3 câu hỏi sai nhiều nhất</h2>
               </div>
               <span class="analytics-badge">⚠️ Câu hỏi cần chú ý</span>
@@ -188,6 +196,32 @@
               <p class="muted">Chọn bài quiz để xem phân tích 3 câu hỏi có tỷ lệ sai nhiều nhất.</p>
             </div>
           </section>
+
+          <!-- MODAL CHI TIẾT DANH SÁCH THÍ SINH & BỘ LỌC TIẾN ĐỘ -->
+          <div id="participants-modal" class="modal-backdrop hidden">
+            <div class="modal-card">
+              <div class="modal-header">
+                <div>
+                  <h3>Tiến độ thí sinh (<span id="participant-count-badge">0</span>)</h3>
+                  <p class="muted small" style="margin: 3px 0 0;">Theo dõi thí sinh hoàn thành và đang làm bài</p>
+                </div>
+                <button type="button" class="modal-close-btn" id="close-participants-modal" title="Đóng">✕</button>
+              </div>
+              <div class="modal-toolbar">
+                <div class="modal-filter-tabs">
+                  <button type="button" class="modal-tab-btn active" data-filter="all">Tất cả (<span id="filter-all-count">0</span>)</button>
+                  <button type="button" class="modal-tab-btn tab-pending" data-filter="pending">Chưa làm xong (<span id="filter-pending-count">0</span>)</button>
+                  <button type="button" class="modal-tab-btn tab-completed" data-filter="completed">Đã làm xong (<span id="filter-completed-count">0</span>)</button>
+                </div>
+                <div class="modal-search-box">
+                  <input type="text" id="participant-search-input" placeholder="🔍 Lọc theo Họ tên hoặc MSSV..." autocomplete="off">
+                </div>
+              </div>
+              <div id="participants-content" class="table-wrap modal-body">
+                <p class="muted">Chọn bài quiz để xem danh sách thí sinh.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -85,10 +85,32 @@ async function sendQuizUpdateToClient(ws, quizId) {
   }
 }
 
-async function broadcastQuizUpdate(quizId) {
+// Quản lý throttle broadcast cập nhật realtime
+const broadcastTimers = new Map();
+
+function broadcastQuizUpdate(quizId, immediate = false) {
   if (!wss || !quizId) return;
   const targetId = Number(quizId);
 
+  if (immediate) {
+    if (broadcastTimers.has(targetId)) {
+      clearTimeout(broadcastTimers.get(targetId));
+      broadcastTimers.delete(targetId);
+    }
+    return executeBroadcast(targetId);
+  }
+
+  // Nếu đang có lịch gửi trong 350ms tới thì gom chung cập nhật (Debounce/Throttle)
+  if (broadcastTimers.has(targetId)) return;
+
+  const timer = setTimeout(() => {
+    broadcastTimers.delete(targetId);
+    executeBroadcast(targetId);
+  }, 350);
+  broadcastTimers.set(targetId, timer);
+}
+
+async function executeBroadcast(targetId) {
   try {
     const [participants, rawRanking, topWrongData] = await Promise.all([
       repo.listParticipants(targetId),
