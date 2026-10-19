@@ -14,6 +14,34 @@ router.get('/public/state', async (req, res, next) => {
 router.get('/admin/quizzes', requireAdmin, async (req, res, next) => {
   try { res.json(await repo.listQuizzes()); } catch (e) { next(e); }
 });
+router.put('/admin/quizzes/reorder', requireAdmin, async (req, res, next) => {
+  try {
+    const { order } = req.body;
+    if (!Array.isArray(order) || order.length === 0) {
+      return res.status(400).json({ message: 'Danh sách thứ tự không hợp lệ.' });
+    }
+    await repo.reorderQuizzes(order);
+    const activeQuiz = await repo.getActiveQuiz();
+    if (activeQuiz) {
+      broadcastQuizUpdate(activeQuiz.id);
+    }
+    res.json({ message: 'Đã cập nhật vị trí quiz thành công.', activeQuizId: activeQuiz ? activeQuiz.id : null });
+  } catch (e) { next(e); }
+});
+router.post('/admin/quizzes/reorder', requireAdmin, async (req, res, next) => {
+  try {
+    const { order } = req.body;
+    if (!Array.isArray(order) || order.length === 0) {
+      return res.status(400).json({ message: 'Danh sách thứ tự không hợp lệ.' });
+    }
+    await repo.reorderQuizzes(order);
+    const activeQuiz = await repo.getActiveQuiz();
+    if (activeQuiz) {
+      broadcastQuizUpdate(activeQuiz.id);
+    }
+    res.json({ message: 'Đã cập nhật vị trí quiz thành công.', activeQuizId: activeQuiz ? activeQuiz.id : null });
+  } catch (e) { next(e); }
+});
 router.get('/admin/quizzes/:id', requireAdmin, async (req, res, next) => {
   try {
     const id = Number(req.params.id);

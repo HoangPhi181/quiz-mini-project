@@ -33,10 +33,20 @@ if (process.env.DB_URI) {
   });
 }
 
-// Tự động kiểm tra và thêm các composite index tối ưu hóa tốc độ truy vấn trên Aiven
+// Tự động kiểm tra và thêm các composite index và cột cần thiết trên MySQL
 (async function initDatabaseIndexes() {
   try {
+    // Tự động kiểm tra và thêm cột sort_order cho bảng quizzes nếu chưa có
+    const [colRows] = await pool.query(
+      "SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'quizzes' AND column_name = 'sort_order'"
+    );
+    if (!colRows || colRows.length === 0) {
+      await pool.query("ALTER TABLE quizzes ADD COLUMN sort_order INT NOT NULL DEFAULT 0");
+      console.log('[DB] Đã thêm cột sort_order vào bảng quizzes');
+    }
+
     const indexes = [
+      { table: 'quizzes', name: 'idx_quizzes_sort', cols: '(sort_order ASC, id DESC)' },
       { table: 'participants', name: 'idx_participants_quiz_sub', cols: '(quiz_id, submitted_at)' },
       { table: 'participants', name: 'idx_participants_quiz_score', cols: '(quiz_id, score DESC, submitted_at ASC)' },
       { table: 'answers', name: 'idx_answers_q_correct', cols: '(question_id, is_correct)' }
@@ -53,7 +63,7 @@ if (process.env.DB_URI) {
     }
   } catch (err) {
     // Không chặn ứng dụng nếu tài khoản không có quyền ALTER hoặc đã có cấu trúc tương đương
-    console.log('[DB] Index note:', err.message);
+    console.log('[DB] Migration/Index note:', err.message);
   }
 })();
 

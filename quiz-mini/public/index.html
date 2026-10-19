@@ -16,6 +16,7 @@
     <section id="play-view" class="view">
       <div class="panel join-panel" id="join-panel">
         <div class="panel-heading"><div><span class="step-tag">BẮT ĐẦU</span><h2>Vào phòng thi</h2></div><span class="panel-icon">↗</span></div>
+        <div id="join-active-quiz" class="join-active-quiz-box"></div>
         <form id="join-form">
           <label for="full-name">Họ và tên</label><input id="full-name" name="full_name" placeholder="Ví dụ: Nguyễn Văn An" maxlength="120" required>
           <label for="candidate-number">Mã số sinh viên (MSSV)</label><input id="candidate-number" name="candidate_number" placeholder="Ví dụ: 23DCCN001" maxlength="40" required>
@@ -137,6 +138,10 @@
             </section>
             <section class="panel">
               <div class="panel-heading"><div><span class="step-tag">02 / VẬN HÀNH</span><h2>Danh sách quiz</h2></div><button id="refresh-quizzes" class="icon-btn" title="Làm mới">↻</button></div>
+              <div id="quiz-list-guide" class="quiz-list-guide">
+                <span class="guide-icon">💡</span>
+                <span>Kéo thả thẻ quiz hoặc bấm <b>▲/▼</b> để thay đổi thứ tự. Quiz ở <b>vị trí #1 (trên cùng)</b> là bài thi duy nhất thí sinh có thể vào phòng chờ và làm bài.</span>
+              </div>
               <div id="quiz-list" class="quiz-list"><p class="muted">Đang tải...</p></div>
             </section>
           </div>

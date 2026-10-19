@@ -28,15 +28,32 @@ async function getActiveQuiz() {
   if (activeQuizCache && activeQuizCache.expiresAt > Date.now()) {
     return activeQuizCache.data;
   }
-  const [rows] = await db.query("SELECT id,title,description,status,created_at FROM quizzes ORDER BY id DESC LIMIT 1");
+  let rows;
+  try {
+    [rows] = await db.query("SELECT id,title,description,status,sort_order,created_at FROM quizzes ORDER BY sort_order ASC, id DESC LIMIT 1");
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      [rows] = await db.query("SELECT id,title,description,status,created_at FROM quizzes ORDER BY id DESC LIMIT 1");
+    } else {
+      throw err;
+    }
+  }
   const quiz = rows[0] || null;
   activeQuizCache = { data: quiz, expiresAt: Date.now() + 2500 };
   return quiz;
 }
 
 async function listQuizzes() {
-  const [rows] = await db.query("SELECT q.*, (SELECT COUNT(*) FROM questions x WHERE x.quiz_id=q.id) question_count, (SELECT COUNT(*) FROM participants p WHERE p.quiz_id=q.id) participant_count FROM quizzes q ORDER BY q.id DESC");
-  return rows;
+  try {
+    const [rows] = await db.query("SELECT q.*, (SELECT COUNT(*) FROM questions x WHERE x.quiz_id=q.id) question_count, (SELECT COUNT(*) FROM participants p WHERE p.quiz_id=q.id) participant_count FROM quizzes q ORDER BY q.sort_order ASC, q.id DESC");
+    return rows;
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      const [rows] = await db.query("SELECT q.*, (SELECT COUNT(*) FROM questions x WHERE x.quiz_id=q.id) question_count, (SELECT COUNT(*) FROM participants p WHERE p.quiz_id=q.id) participant_count FROM quizzes q ORDER BY q.id DESC");
+      return rows;
+    }
+    throw err;
+  }
 }
 
 async function getQuiz(id) {
@@ -72,9 +89,19 @@ async function getQuestions(quizId, includeAnswers = false) {
 }
 
 async function createQuiz({ title, description }) {
-  const [result] = await db.query('INSERT INTO quizzes(title,description,status) VALUES(?,?,?)', [title, description || '', 'closed']);
-  invalidateQuizCache();
-  return result.insertId;
+  try {
+    await db.query('UPDATE quizzes SET sort_order = sort_order + 1');
+    const [result] = await db.query('INSERT INTO quizzes(title,description,status,sort_order) VALUES(?,?,?,0)', [title, description || '', 'closed']);
+    invalidateQuizCache();
+    return result.insertId;
+  } catch (err) {
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      const [result] = await db.query('INSERT INTO quizzes(title,description,status) VALUES(?,?,?)', [title, description || '', 'closed']);
+      invalidateQuizCache();
+      return result.insertId;
+    }
+    throw err;
+  }
 }
 
 async function addQuestion(quizId, q, sortOrder) {
@@ -338,6 +365,28 @@ async function deleteQuiz(id) {
   return result.affectedRows > 0;
 }
 
+async function reorderQuizzes(orderedIds) {
+  if (!Array.isArray(orderedIds) || orderedIds.length === 0) return false;
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    for (let i = 0; i < orderedIds.length; i++) {
+      const id = Number(orderedIds[i]);
+      if (id) {
+        await conn.query('UPDATE quizzes SET sort_order = ? WHERE id = ?', [i, id]);
+      }
+    }
+    await conn.commit();
+    invalidateQuizCache();
+    return true;
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   getActiveQuiz,
   listQuizzes,
@@ -347,6 +396,7 @@ module.exports = {
   addQuestion,
   updateQuiz,
   deleteQuiz,
+  reorderQuizzes,
   setStatus,
   joinParticipant,
   getParticipant,

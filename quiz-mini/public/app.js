@@ -49,6 +49,53 @@ function showMessage(selector, text) {
   if (el) el.textContent = text || '';
 }
 
+function showToast(msg, duration = 3200) {
+  let toast = $('#quiz-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'quiz-toast';
+    toast.className = 'quiz-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, duration);
+}
+
+async function updatePublicQuizState() {
+  const container = $('#join-active-quiz');
+  if (!container) return;
+
+  try {
+    const data = await api('/public/state');
+    if (!data || !data.quiz) {
+      container.innerHTML = `
+        <div class="join-active-quiz-card">
+          <span class="muted small">Chưa có bài quiz nào được thiết lập. Vui lòng liên hệ Admin.</span>
+        </div>`;
+      return;
+    }
+
+    const q = data.quiz;
+    const isOpen = q.status === 'open';
+    const isClosed = q.status === 'closed';
+
+    container.innerHTML = `
+      <div class="join-active-quiz-card">
+        <div class="active-quiz-label">
+          <span class="live-dot ${isOpen ? '' : 'dot-closed'}"></span>
+          <span>Bài thi hiện tại: <strong>${escapeHtml(q.title)}</strong></span>
+        </div>
+        <span class="status-label status-${q.status}">${isOpen ? 'ĐANG MỞ' : isClosed ? 'ĐANG KHÓA' : 'ĐÃ KẾT THÚC'}</span>
+      </div>`;
+  } catch (err) {
+    console.error('Error fetching public state:', err);
+  }
+}
+
 // Navigation between views (Tham gia / Quản trị)
 function setView(id) {
   $$('.view').forEach(el => el.classList.toggle('hidden', el.id !== id));
@@ -56,6 +103,8 @@ function setView(id) {
   localStorage.setItem('quiz_active_view', id);
   if (id === 'admin-view') {
     checkAdmin();
+  } else if (id === 'play-view') {
+    updatePublicQuizState();
   }
 }
 $$('.nav-btn').forEach(btn => btn.addEventListener('click', () => setView(btn.dataset.view)));
@@ -124,6 +173,7 @@ function resetParticipantSession() {
   $('#result-panel').classList.add('hidden');
   $('#join-panel').classList.remove('hidden');
   showMessage('#join-message', '');
+  updatePublicQuizState();
 }
 
 $$('.reset-user-btn').forEach(btn => btn.addEventListener('click', resetParticipantSession));
@@ -155,6 +205,7 @@ async function checkParticipantState() {
     const state = await api(`/public/participant/${participantId}/state`);
     if (state.status === 'closed') {
       showWaitingPanel();
+      if (state.title) $('#waiting-title').textContent = `Phòng chờ: ${state.title}`;
       $('#waiting-status').textContent = 'Đang chờ admin mở bài';
     } else if (state.status === 'open' && state.questions && !state.submitted) {
       clearTimeout(pollHandle);
@@ -1077,14 +1128,34 @@ async function loadQuizzes() {
     cachedQuizzes = quizzes;
     updateMonitorQuizSelect();
 
-    $('#quiz-list').innerHTML = quizzes.length ? quizzes.map(q => `
-      <div class="quiz-item ${selectedAdminQuiz === q.id ? 'selected' : ''} ${editingQuizId === q.id ? 'is-editing' : ''}" data-id="${q.id}">
-        <div class="quiz-item-top">
-          <div>
-            <h3>${escapeHtml(q.title)}</h3>
-            <div class="quiz-meta">${q.question_count} câu · ${q.participant_count} người tham gia</div>
+    $('#quiz-list').innerHTML = quizzes.length ? quizzes.map((q, idx) => `
+      <div class="quiz-item ${selectedAdminQuiz === q.id ? 'selected' : ''} ${editingQuizId === q.id ? 'is-editing' : ''}" data-id="${q.id}" draggable="true">
+        <div class="quiz-item-header">
+          <div class="quiz-reorder-controls">
+            <div class="drag-handle" title="Nhấn giữ và kéo để đổi vị trí quiz" aria-label="Kéo đổi vị trí">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <circle cx="9" cy="5" r="1.8"></circle>
+                <circle cx="15" cy="5" r="1.8"></circle>
+                <circle cx="9" cy="12" r="1.8"></circle>
+                <circle cx="15" cy="12" r="1.8"></circle>
+                <circle cx="9" cy="19" r="1.8"></circle>
+                <circle cx="15" cy="19" r="1.8"></circle>
+              </svg>
+            </div>
+            <div class="quiz-reorder-arrows">
+              <button type="button" class="order-arrow-btn order-up-btn" data-action="move-up" data-id="${q.id}" title="Đẩy lên trên" ${idx === 0 ? 'disabled' : ''}>▲</button>
+              <button type="button" class="order-arrow-btn order-down-btn" data-action="move-down" data-id="${q.id}" title="Đẩy xuống dưới" ${idx === quizzes.length - 1 ? 'disabled' : ''}>▼</button>
+            </div>
+            <span class="quiz-pos-badge ${idx === 0 ? 'quiz-pos-top' : ''}">
+              ${idx === 0 ? '⭐ #1 (Client thi)' : `#${idx + 1}`}
+            </span>
           </div>
           <span class="status-label status-${q.status}">${q.status === 'open' ? 'ĐANG MỞ' : q.status === 'closed' ? 'ĐANG KHÓA' : 'ĐÃ KẾT THÚC'}</span>
+        </div>
+        <div class="quiz-item-content">
+          <h3 class="quiz-item-title">${escapeHtml(q.title)}</h3>
+          ${q.description ? `<p class="quiz-item-desc">${escapeHtml(q.description)}</p>` : ''}
+          <div class="quiz-meta">${q.question_count} câu · ${q.participant_count} người tham gia</div>
         </div>
         <div class="quiz-actions">
           <button class="mini-btn view-action" data-action="view-data" data-id="${q.id}">👁️ Xem dữ liệu</button>
@@ -1095,14 +1166,152 @@ async function loadQuizzes() {
       </div>`).join('') : '<p class="empty">Chưa có quiz. Hãy tạo bài đầu tiên.</p>';
 
     $('#quiz-list').querySelectorAll('button[data-action]').forEach(btn => {
-      btn.addEventListener('click', () => quizAction(btn.dataset.action, Number(btn.dataset.id)));
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        quizAction(btn.dataset.action, Number(btn.dataset.id), btn);
+      });
     });
+
+    setupQuizDragAndDrop();
   } catch (err) {
     $('#quiz-list').innerHTML = `<p class="message">${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function quizAction(action, id) {
+let draggedQuizItem = null;
+
+function setupQuizDragAndDrop() {
+  const list = $('#quiz-list');
+  if (!list) return;
+  const items = list.querySelectorAll('.quiz-item');
+
+  items.forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select')) {
+        e.preventDefault();
+        return;
+      }
+      draggedQuizItem = item;
+      item.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.dataset.id);
+    });
+
+    item.addEventListener('dragend', () => {
+      if (draggedQuizItem) {
+        draggedQuizItem.classList.remove('is-dragging');
+        draggedQuizItem = null;
+      }
+      list.querySelectorAll('.quiz-item').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (!draggedQuizItem || draggedQuizItem === item) return;
+
+      const rect = item.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        item.classList.add('drag-over-top');
+        item.classList.remove('drag-over-bottom');
+      } else {
+        item.classList.add('drag-over-bottom');
+        item.classList.remove('drag-over-top');
+      }
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    item.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+      if (!draggedQuizItem || draggedQuizItem === item) return;
+
+      const rect = item.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+
+      if (e.clientY < midY) {
+        list.insertBefore(draggedQuizItem, item);
+      } else {
+        list.insertBefore(draggedQuizItem, item.nextSibling);
+      }
+
+      await saveCurrentQuizOrder();
+    });
+  });
+}
+
+function updateQuizListPositionsUI() {
+  const items = $$('#quiz-list .quiz-item');
+  const count = items.length;
+  items.forEach((item, idx) => {
+    const isTop = idx === 0;
+    const isBottom = idx === count - 1;
+    const badge = item.querySelector('.quiz-pos-badge');
+    if (badge) {
+      badge.className = `quiz-pos-badge ${isTop ? 'quiz-pos-top' : ''}`;
+      badge.textContent = isTop ? '⭐ #1 (Client thi)' : `#${idx + 1}`;
+    }
+    const upBtn = item.querySelector('.order-up-btn');
+    if (upBtn) upBtn.disabled = isTop;
+    const downBtn = item.querySelector('.order-down-btn');
+    if (downBtn) downBtn.disabled = isBottom;
+  });
+}
+
+async function saveCurrentQuizOrder() {
+  const items = $$('#quiz-list .quiz-item');
+  const order = items.map(el => Number(el.dataset.id)).filter(Boolean);
+  if (!order.length) return;
+
+  updateQuizListPositionsUI();
+
+  try {
+    await api('/admin/quizzes/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ order })
+    });
+
+    const map = new Map(cachedQuizzes.map(q => [q.id, q]));
+    cachedQuizzes = order.map(id => map.get(id)).filter(Boolean);
+    updateMonitorQuizSelect();
+
+    const topQuiz = cachedQuizzes[0];
+    const topName = topQuiz ? topQuiz.title : 'Quiz';
+    const statusText = topQuiz ? (topQuiz.status === 'open' ? 'Đang mở' : topQuiz.status === 'closed' ? 'Đang khóa' : 'Đã kết thúc') : '';
+    showToast(`✓ Đã đổi vị trí: "${topName}" hiện là Quiz #1 (Client thi - ${statusText})`);
+  } catch (err) {
+    alert('Không thể lưu thứ tự quiz: ' + err.message);
+    await loadQuizzes();
+  }
+}
+
+async function quizAction(action, id, btn = null) {
+  if (action === 'move-up') {
+    const item = btn ? btn.closest('.quiz-item') : $(`#quiz-list .quiz-item[data-id="${id}"]`);
+    if (item && item.previousElementSibling && item.previousElementSibling.classList.contains('quiz-item')) {
+      const list = $('#quiz-list');
+      list.insertBefore(item, item.previousElementSibling);
+      await saveCurrentQuizOrder();
+    }
+    return;
+  }
+
+  if (action === 'move-down') {
+    const item = btn ? btn.closest('.quiz-item') : $(`#quiz-list .quiz-item[data-id="${id}"]`);
+    if (item && item.nextElementSibling && item.nextElementSibling.classList.contains('quiz-item')) {
+      const list = $('#quiz-list');
+      list.insertBefore(item.nextElementSibling, item);
+      await saveCurrentQuizOrder();
+    }
+    return;
+  }
+
   if (action === 'view-data') {
     try {
       const data = await api(`/admin/quizzes/${id}`);

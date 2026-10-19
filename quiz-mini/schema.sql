@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS quizzes (
   title VARCHAR(180) NOT NULL,
   description VARCHAR(500) DEFAULT '',
   status ENUM('closed','open','finished') NOT NULL DEFAULT 'closed',
+  sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
